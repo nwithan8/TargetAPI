@@ -46,6 +46,7 @@ class API:
         self._key = api_key
         self._target_instance = target_instance
         self._base_url = "https://api.target.com/"
+        self._session = requests.Session()
 
     def _get_json(self, endpoint: str, params: dict = {}) -> dict:
         res = self._get(endpoint=endpoint, params=params)
@@ -58,7 +59,7 @@ class API:
         url = _make_url(base=self._base_url, endpoint=endpoint)
         url += f"?{urlencode(params)}"
         print(url)
-        res = requests.get(url=url)
+        res = self._session.get(url=url)
         if res:
             return res
         return None
@@ -100,7 +101,7 @@ class TargetAPI(API):
         self._locations = []
 
     @property
-    def stores(self) -> List[Store]:
+    def locations(self) -> List[Store]:
         if not self._locations:
             self._locations = []
             data = self._get_json(endpoint='ship_locations/v1')
@@ -108,6 +109,30 @@ class TargetAPI(API):
                 for loc in data:
                     self._locations.append(Store(data=loc, target=self._target_instance))
         return self._locations
+
+    @property
+    def stores(self) -> List[Store]:
+        locations = []
+        for location in self.locations:
+            if location.type == "STORE":
+                locations.append(location)
+        return locations
+
+    @property
+    def vendors(self) -> List[Store]:
+        locations = []
+        for location in self.locations:
+            if location.type == "VENDOR":
+                locations.append(location)
+        return locations
+
+    @property
+    def sellers(self) -> List[Store]:
+        locations = []
+        for location in self.locations:
+            if location.type == "SELLER_LOCATION":
+                locations.append(location)
+        return locations
 
     def product_availability(self, product: Product, nearby_store: str = None, inventory_type: str = 'ALL', multichannel: str = 'ALL') -> Union[Availability, None]:
         params = {
