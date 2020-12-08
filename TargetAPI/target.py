@@ -70,11 +70,10 @@ class RedSky(API):
         super().__init__(api_key=api_key, target_instance=target_instance)
         self._base_url = "https://redsky.target.com/"
 
-    def search_products(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance") -> List[Product]:
-        products = []
+    def search_products(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance", page_number: int = 1, products: List = []) -> List[Product]:
         params = {
             'searchTerm': keyword,
-            'pageNumber': 1,
+            'pageNumber': page_number,
             'storeSearch': store_search,
             'sortBy': sort_by,
             'pricing_context': 'digital' if not store_id else 'in_store',
@@ -91,6 +90,8 @@ class RedSky(API):
             else:
                 for prod in data['products']:
                     products.append(Product(data=prod, target=self._target_instance))
+            if data.get('totalPages') and int(data['totalPages']) > page_number:
+                return self.search_products(keyword=keyword, store_id=store_id, store_search=store_search, sort_by=sort_by, page_number=page_number+1, products=products)
         return products
 
 
@@ -131,6 +132,14 @@ class TargetAPI(API):
         locations = []
         for location in self.locations:
             if location.type == "SELLER_LOCATION":
+                locations.append(location)
+        return locations
+
+    @property
+    def distribution_centers(self) -> List[Store]:
+        locations = []
+        for location in self.locations:
+            if location.type == "DISTRIBUTION_CENTER":
                 locations.append(location)
         return locations
 
