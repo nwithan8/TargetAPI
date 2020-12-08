@@ -21,7 +21,7 @@ Examples:
 
 
 # Credits
-Thanks to @MichaelPriebe for his myStore app source code, which helped me determine the proper API endpoints
+Thanks to [@MichaelPriebe](https://github.com/MichaelPriebe) for his myStore app source code, which helped me determine the proper API endpoints
 
 # Contact
 Please leave a pull request if you would like to contribute.
