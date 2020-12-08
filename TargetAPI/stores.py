@@ -47,14 +47,19 @@ class Store:
     def obgd_enabled(self) -> str:
         return self._data.get('obgd_enabled')
 
+    @property
+    def phone_number(self) -> str:
+        return self._data.get('phone')
 
-class AvailabilityLocation(Store):
+    def search(self, keyword: str, store_search: bool = False, sort_by: str = "relevance"):
+        return self._target_instance.redsky.search_products(keyword=keyword, store_id=self.id, store_search=store_search, sort_by=sort_by)
+
+
+class AvailabilityLocation:
     def __init__(self, data: dict, target):
         self._data = data
         self._target_instance = target
-        temp_store = self._target_instance._store_by_id(store_id=self._data.get('location_id'))
-        super().__init__(data=temp_store._data, target=self._target_instance)
-        del temp_store
+        self.store = self._target_instance._store_by_id(store_id=self._data.get('location_id'))
 
     @property
     def onhand(self) -> int:
