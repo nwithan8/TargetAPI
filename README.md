@@ -3,6 +3,7 @@ Interact with Target's API
 
 # Installation
 Download from PyPi with ``pip install TargetAPI``
+https://pypi.org/project/TargetAPI/
 
 # Usage
 - Import with ``from TargetAPI import Target``
