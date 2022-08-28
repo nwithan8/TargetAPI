@@ -142,3 +142,4 @@ cython_debug/
 # Custom
 test.py
 .idea/
+/TargetAPI/models/data.json

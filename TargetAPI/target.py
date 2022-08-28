@@ -3,8 +3,8 @@ from urllib.parse import urlencode
 
 import requests
 
-from TargetAPI.products import Product, Availability
-from TargetAPI.stores import Store
+from TargetAPI.models import SearchResults, AvailabilityResults, Product, Location, Fulfillment
+
 
 def _make_url(base: str, endpoint: str):
     if base.endswith("/"):
@@ -20,25 +20,27 @@ class Target:
         self.api = TargetAPI(api_key=api_key, target_instance=self)
         self.redsky = RedSky(api_key=api_key, target_instance=self)
 
-    def _store_by_id(self, store_id: str) -> Union[Store, None]:
+    def _store_by_id(self, store_id: str) -> Union[Location, None]:
         for store in self.stores:
             if store.id == store_id:
                 return store
         return None
 
-    def find_stores(self, keyword: str) -> List[Store]:
+    def find_stores(self, keyword: str) -> List[Location]:
         locations = []
         for store in self.stores:
-            if keyword in store.name:
+            if keyword in store.location_name:
                 locations.append(store)
         return locations
 
     @property
-    def stores(self) -> List[Store]:
+    def stores(self) -> List[Location]:
         return self.api.stores
 
-    def search(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance") -> List[Product]:
-        return self.redsky.search_products(keyword=keyword, store_id=store_id, store_search=store_search, sort_by=sort_by)
+    def search(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance") \
+            -> List[Product]:
+        return self.redsky.search_products(keyword=keyword, store_id=store_id, store_search=store_search,
+                                           sort_by=sort_by)
 
 
 class API:
@@ -70,28 +72,40 @@ class RedSky(API):
         super().__init__(api_key=api_key, target_instance=target_instance)
         self._base_url = "https://redsky.target.com/"
 
-    def search_products(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance") -> List[Product]:
-        products = []
+    def search_products(self, keyword: str, store_id: str = None, store_search: bool = False,
+                        sort_by: str = "relevance") -> List[Product]:
         params = {
-            'searchTerm': keyword,
+            'channel': 'WEB',
+            'keyword': keyword,
+            'page': '/s/none',
+            'pricing_store_id': store_id if store_id else 1928,
+            'visitor_id': 1,
             'pageNumber': 1,
             'storeSearch': store_search,
             'sortBy': sort_by,
             'pricing_context': 'digital' if not store_id else 'in_store',
-            'pricing_store_id': store_id if store_id else '3991'
         }
-        endpoint = 'v4/products/list'
-        if store_id:
-            endpoint += f"/{store_id}"
-            params['storeId'] = store_id
+        endpoint = 'redsky_aggregations/v1/web/plp_search_v1'
         data = self._get_json(endpoint=endpoint, params=params)
         if data:
-            if not data.get('products'):
-                print("Target is attempting to redirect you to a category page. Please reword your keyword.")
-            else:
-                for prod in data['products']:
-                    products.append(Product(data=prod, target=self._target_instance))
-        return products
+            return SearchResults(**data).data.search.products
+        return []
+
+    def product_availability(self, product: Product, store: Location = None) -> Union[Fulfillment, None]:
+        params = {
+            'is_bot': False,
+            'tcin': product.tcin,
+            'channel': 'WEB',
+            'page': '/s/none',
+        }
+        if store:
+            params['store_id'] = store.location_id
+        endpoint = "redsky_aggregations/v1/web_platform/product_fulfillment_v1"
+        data = self._get_json(endpoint=endpoint, params=params)
+        if data:
+            availability_results = AvailabilityResults(**data)
+            return availability_results.data.product.fulfillment
+        return None
 
 
 class TargetAPI(API):
@@ -101,47 +115,35 @@ class TargetAPI(API):
         self._locations = []
 
     @property
-    def locations(self) -> List[Store]:
+    def locations(self) -> List[Location]:
         if not self._locations:
             self._locations = []
             data = self._get_json(endpoint='ship_locations/v1')
             if data:
                 for loc in data:
-                    self._locations.append(Store(data=loc, target=self._target_instance))
+                    self._locations.append(Location(**loc))
         return self._locations
 
     @property
-    def stores(self) -> List[Store]:
+    def stores(self) -> List[Location]:
         locations = []
         for location in self.locations:
-            if location.type == "STORE":
+            if location.location_type == "STORE":
                 locations.append(location)
         return locations
 
     @property
-    def vendors(self) -> List[Store]:
+    def vendors(self) -> List[Location]:
         locations = []
         for location in self.locations:
-            if location.type == "VENDOR":
+            if location.location_type == "VENDOR":
                 locations.append(location)
         return locations
 
     @property
-    def sellers(self) -> List[Store]:
+    def sellers(self) -> List[Location]:
         locations = []
         for location in self.locations:
-            if location.type == "SELLER_LOCATION":
+            if location.location_type == "SELLER_LOCATION":
                 locations.append(location)
         return locations
-
-    def product_availability(self, product: Product, nearby_store: str = None, inventory_type: str = 'ALL', multichannel: str = 'ALL') -> Union[Availability, None]:
-        params = {
-            'inventory_type': inventory_type,
-            'multichannel_option': multichannel
-        }
-        if nearby_store:
-            params['nearby_store'] = nearby_store
-        data = self._get_json(endpoint=f"available_to_promise/v2/{product.tcin}", params=params)
-        if data and data.get('products'):
-            return Availability(data=data['products'][0], target=self._target_instance, product=product)
-        return None
