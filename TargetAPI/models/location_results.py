@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 
 class ModelItem(BaseModel):
-    location_id: str
+    location_id: Optional[str]
     location_name: Optional[str]
     location_type: Optional[str]
     address_line_1: Optional[str]

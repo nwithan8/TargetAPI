@@ -22,7 +22,7 @@ class Target:
 
     def _store_by_id(self, store_id: str) -> Union[Location, None]:
         for store in self.stores:
-            if store.id == store_id:
+            if store.location_id == store_id:
                 return store
         return None
 
@@ -60,7 +60,6 @@ class API:
         params['key'] = self._key
         url = _make_url(base=self._base_url, endpoint=endpoint)
         url += f"?{urlencode(params)}"
-        print(url)
         res = self._session.get(url=url)
         if res:
             return res
@@ -72,21 +71,26 @@ class RedSky(API):
         super().__init__(api_key=api_key, target_instance=target_instance)
         self._base_url = "https://redsky.target.com/"
 
+    def _search(self, endpoint: str, **kwargs):
+        params = {
+            'channel': 'WEB',
+            'page': '/s/none',
+            'visitor_id': 1,
+        }
+        params.update(kwargs)
+        return self._get_json(endpoint=endpoint, params=params)
+
     def search_products(self, keyword: str, store_id: str = None, store_search: bool = False,
                         sort_by: str = "relevance") -> List[Product]:
         params = {
-            'channel': 'WEB',
             'keyword': keyword,
-            'page': '/s/none',
             'pricing_store_id': store_id if store_id else 1928,
-            'visitor_id': 1,
             'pageNumber': 1,
             'storeSearch': store_search,
             'sortBy': sort_by,
             'pricing_context': 'digital' if not store_id else 'in_store',
         }
-        endpoint = 'redsky_aggregations/v1/web/plp_search_v1'
-        data = self._get_json(endpoint=endpoint, params=params)
+        data = self._search(endpoint='redsky_aggregations/v1/web/plp_search_v1', **params)
         if data:
             return SearchResults(**data).data.search.products
         return []
@@ -95,13 +99,10 @@ class RedSky(API):
         params = {
             'is_bot': False,
             'tcin': product.tcin,
-            'channel': 'WEB',
-            'page': '/s/none',
+            'pricing_context': 'digital' if not store else 'in_store',
+            'pricing_store_id': store.location_id if store else 1928,
         }
-        if store:
-            params['store_id'] = store.location_id
-        endpoint = "redsky_aggregations/v1/web_platform/product_fulfillment_v1"
-        data = self._get_json(endpoint=endpoint, params=params)
+        data = self._search(endpoint='redsky_aggregations/v1/web_platform/product_fulfillment_v1', **params)
         if data:
             availability_results = AvailabilityResults(**data)
             return availability_results.data.product.fulfillment

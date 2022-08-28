@@ -279,11 +279,11 @@ class Parent(BaseModel):
 
 class Product(BaseModel):
     __typename: str
-    tcin: str
-    original_tcin: str
-    item: Item
-    promotions: List[Promotion]
-    price: Price
+    tcin: Optional[str]
+    original_tcin: Optional[str] = None
+    item: Optional[Item]
+    promotions: Optional[List[Promotion]]
+    price: Optional[Price]
     ratings_and_reviews: Optional[RatingsAndReviews] = None
     parent: Optional[Parent] = None
 
