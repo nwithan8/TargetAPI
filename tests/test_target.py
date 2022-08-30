@@ -1,5 +1,5 @@
 import TargetAPI
-from TargetAPI.models import Product
+from TargetAPI.models import SearchProduct, StoreProductChild
 from tests.setup import client
 
 
@@ -30,10 +30,12 @@ def test_product_availability_with_store():
     product_data = {
         'tcin': '83971257',
     }
-    product = TargetAPI.models.Product(**product_data)
+    product = TargetAPI.models.SearchProduct(**product_data)
     store_data = {
-        'location_id': 2468,
+        'location_id': 1928,
     }
     store = TargetAPI.models.Location(**store_data)
-    availability = target.redsky.product_availability(product=product, store=store)
-    assert availability is not None
+    in_store_product: StoreProductChild = target.redsky.product_availability_at_store(product=product, store=store)
+    assert in_store_product is not None
+    price = in_store_product.price
+    assert price is not None

@@ -3,7 +3,8 @@ from urllib.parse import urlencode
 
 import requests
 
-from TargetAPI.models import SearchResults, AvailabilityResults, Product, Location, Fulfillment
+from TargetAPI.models import SearchResults, OnlineAvailabilityResults, OnlineProduct, \
+    StoreAvailabilityResults, StoreProduct, StoreProductChild, SearchProduct, Location
 
 
 def _make_url(base: str, endpoint: str):
@@ -38,7 +39,7 @@ class Target:
         return self.api.stores
 
     def search(self, keyword: str, store_id: str = None, store_search: bool = False, sort_by: str = "relevance") \
-            -> List[Product]:
+            -> List[SearchProduct]:
         return self.redsky.search_products(keyword=keyword, store_id=store_id, store_search=store_search,
                                            sort_by=sort_by)
 
@@ -76,12 +77,13 @@ class RedSky(API):
             'channel': 'WEB',
             'page': '/s/none',
             'visitor_id': 1,
+            'is_bot': False,
         }
         params.update(kwargs)
         return self._get_json(endpoint=endpoint, params=params)
 
     def search_products(self, keyword: str, store_id: str = None, store_search: bool = False,
-                        sort_by: str = "relevance") -> List[Product]:
+                        sort_by: str = "relevance") -> List[SearchProduct]:
         params = {
             'keyword': keyword,
             'pricing_store_id': store_id if store_id else 1928,
@@ -95,17 +97,35 @@ class RedSky(API):
             return SearchResults(**data).data.search.products
         return []
 
-    def product_availability(self, product: Product, store: Location = None) -> Union[Fulfillment, None]:
+    def product_availability(self, product: SearchProduct) -> Union[OnlineProduct, None]:
         params = {
-            'is_bot': False,
             'tcin': product.tcin,
-            'pricing_context': 'digital' if not store else 'in_store',
-            'pricing_store_id': store.location_id if store else 1928,
+            'pricing_context': 'digital',
+            'pricing_store_id': 1928,  # default value
         }
         data = self._search(endpoint='redsky_aggregations/v1/web_platform/product_fulfillment_v1', **params)
         if data:
-            availability_results = AvailabilityResults(**data)
-            return availability_results.data.product.fulfillment
+            availability_results = OnlineAvailabilityResults(**data)
+            return availability_results.data.product
+        return None
+
+    def product_availability_at_store(self, product: SearchProduct, store: Location) -> Union[StoreProduct, StoreProductChild, None]:
+        params = {
+            'tcin': product.tcin,
+            'pricing_context': 'in_store',
+            'store_id': store.location_id,
+            'pricing_store_id': store.location_id,
+            'has_pricing_store_id': True,
+            'scheduled_delivery_store_id': store.location_id,
+        }
+        data = self._search(endpoint='redsky_aggregations/v1/web/pdp_client_v1', **params)
+        if data:
+            availability_results = StoreAvailabilityResults(**data)
+            if availability_results.data.product.tcin == product.tcin:
+                return availability_results.data.product
+            for child in availability_results.data.product.children:
+                if child.tcin == product.tcin:
+                    return child
         return None
 
 
